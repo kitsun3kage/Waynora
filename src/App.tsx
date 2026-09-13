@@ -1,4 +1,4 @@
-```tsx
+
 import {
   LocateFixed,
   Menu,
@@ -1298,4 +1298,3 @@ function App() {
 }
 
 export default App;
-```
