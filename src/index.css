@@ -5,10 +5,19 @@
 @tailwind utilities;
 
 :root {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
   color-scheme: light;
+
   background: #f1f5f9;
+
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -17,20 +26,19 @@
 
 html.dark {
   color-scheme: dark;
-  background: #020617;
 }
 
 html,
 body,
 #root {
   width: 100%;
-  min-width: 100%;
   min-height: 100%;
   margin: 0;
   padding: 0;
 }
 
 html {
+  min-height: 100%;
   background: #f1f5f9;
 }
 
@@ -42,12 +50,10 @@ body {
   min-height: 100dvh;
   overflow: hidden;
   background: #f1f5f9;
-  color: #0f172a;
 }
 
 html.dark body {
   background: #020617;
-  color: #f8fafc;
 }
 
 * {
@@ -63,328 +69,560 @@ select {
 
 button {
   -webkit-tap-highlight-color: transparent;
-  user-select: none;
+  touch-action: manipulation;
 }
 
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 2px solid #7c3aed;
+  outline: 3px solid rgba(124, 58, 237, 0.35);
   outline-offset: 2px;
 }
 
-::selection {
-  background: rgba(124, 58, 237, 0.25);
-}
-
-::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(100, 116, 139, 0.35);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.55);
-}
-
-html.dark ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.25);
-}
-
-html.dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.4);
-}
-
-/* ---------------------------------------------------------
+/* =========================================================
    LEAFLET
---------------------------------------------------------- */
+   ========================================================= */
 
 .leaflet-container {
   width: 100%;
   height: 100%;
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  background: #dbeafe;
-  color: #0f172a;
-  transition:
-    background-color 0.35s ease,
-    filter 0.35s ease;
+
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  background: #e2e8f0;
 }
 
-html.dark .leaflet-container {
-  background: #0f172a;
+.leaflet-container,
+.leaflet-container * {
+  -webkit-tap-highlight-color: transparent;
 }
 
-/*
- * Apple Maps-like navigation camera.
- *
- * We transform the map pane instead of the entire Leaflet container,
- * so UI controls and attribution remain readable.
- */
-.waynora-navigation-map .leaflet-map-pane {
-  transform-origin: 50% 62%;
-  transform:
-    perspective(1200px)
-    rotateX(52deg)
-    scale(1.28);
-  transition:
-    transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+.leaflet-control-attribution {
+  font-size: 8px !important;
+  line-height: 1.2 !important;
+
+  border-radius: 8px 0 0 0;
+
+  padding: 2px 5px !important;
+
+  background: rgba(255, 255, 255, 0.82) !important;
+
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
-/*
- * Slightly enlarge tiles in navigation mode.
- */
-.waynora-navigation-map .leaflet-tile-pane {
-  filter: saturate(1.06) contrast(1.02);
+.leaflet-control-attribution a {
+  color: #475569;
 }
 
-/*
- * Make the route visually stronger in navigation mode.
- */
-.waynora-navigation-map .leaflet-overlay-pane {
-  filter: drop-shadow(0 5px 7px rgba(37, 99, 235, 0.22));
+.leaflet-control-zoom {
+  display: none !important;
 }
 
-/*
- * The marker itself must remain upright despite the map camera.
- */
-.waynora-navigation-map .waynora-user-marker {
-  transform: none !important;
+.leaflet-control-container {
+  pointer-events: none;
 }
 
-/*
- * Navigation vehicle / arrow.
- */
-.waynora-navigation-arrow {
-  position: relative;
-  width: 46px;
-  height: 58px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transform-origin: center center;
-  filter: drop-shadow(0 7px 12px rgba(0, 0, 0, 0.28));
+.leaflet-control-attribution {
+  pointer-events: auto;
 }
 
-.waynora-navigation-arrow::before {
-  content: "";
-  position: absolute;
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  background: rgba(37, 99, 235, 0.18);
-  box-shadow:
-    0 0 0 7px rgba(37, 99, 235, 0.08),
-    0 0 0 14px rgba(37, 99, 235, 0.04);
-}
-
-.waynora-navigation-arrow__body {
-  position: relative;
-  z-index: 2;
-  width: 30px;
-  height: 42px;
-  clip-path: polygon(
-    50% 0%,
-    94% 84%,
-    62% 71%,
-    50% 100%,
-    38% 71%,
-    6% 84%
-  );
-  background: linear-gradient(
-    180deg,
-    #60a5fa 0%,
-    #2563eb 55%,
-    #1d4ed8 100%
-  );
-  border: 2px solid white;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    0 5px 12px rgba(29, 78, 216, 0.45);
-}
-
-.waynora-user-marker,
-.waynora-destination-marker {
+.waynora-destination-marker,
+.waynora-user-marker {
   background: transparent !important;
   border: none !important;
 }
 
-/* Destination marker */
+/* =========================================================
+   WAYNORA USER LOCATION
+   ========================================================= */
 
-.waynora-destination-marker {
-  overflow: visible !important;
+.waynora-user-location {
+  position: relative;
+
+  width: 54px;
+  height: 54px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* Leaflet controls */
+.waynora-user-dot {
+  position: relative;
+  z-index: 3;
 
-.leaflet-control-attribution {
-  font-size: 8px !important;
-  border-radius: 8px 0 0 0;
-  padding: 3px 6px !important;
-  background: rgba(255, 255, 255, 0.82) !important;
-  backdrop-filter: blur(12px);
-}
+  width: 23px;
+  height: 23px;
 
-html.dark .leaflet-control-attribution {
-  background: rgba(2, 6, 23, 0.82) !important;
-  color: #94a3b8 !important;
-}
+  border-radius: 999px;
 
-html.dark .leaflet-control-attribution a {
-  color: #a78bfa !important;
-}
+  background:
+    radial-gradient(
+      circle at 35% 30%,
+      #60a5fa 0%,
+      #2563eb 48%,
+      #1d4ed8 100%
+    );
 
-.leaflet-control-zoom {
-  display: none;
-}
+  border: 4px solid #ffffff;
 
-.leaflet-popup-content-wrapper,
-.leaflet-popup-tip {
-  background: #ffffff;
-  color: #0f172a;
-}
-
-html.dark .leaflet-popup-content-wrapper,
-html.dark .leaflet-popup-tip {
-  background: #0f172a;
-  color: #f8fafc;
-}
-
-/* ---------------------------------------------------------
-   WAYNORA PANELS
---------------------------------------------------------- */
-
-.waynora-panel {
-  background: rgba(255, 255, 255, 0.94);
-  color: #0f172a;
-  border: 1px solid rgba(226, 232, 240, 0.85);
   box-shadow:
-    0 24px 70px rgba(15, 23, 42, 0.16),
-    0 4px 18px rgba(15, 23, 42, 0.08);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+    0 0 0 4px rgba(37, 99, 235, 0.22),
+    0 5px 15px rgba(15, 23, 42, 0.3);
 }
 
-html.dark .waynora-panel {
-  background: rgba(15, 23, 42, 0.94);
-  color: #f8fafc;
-  border-color: rgba(51, 65, 85, 0.8);
+.waynora-user-heading {
+  position: absolute;
+
+  top: 0;
+  left: 50%;
+
+  width: 0;
+  height: 0;
+
+  transform: translateX(-50%);
+
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-bottom: 19px solid rgba(37, 99, 235, 0.72);
+
+  filter:
+    drop-shadow(
+      0 2px 3px rgba(15, 23, 42, 0.25)
+    );
+
+  z-index: 2;
+}
+
+.waynora-user-heading-inner {
+  position: absolute;
+
+  left: -5px;
+  top: 5px;
+
+  width: 0;
+  height: 0;
+
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 10px solid #ffffff;
+}
+
+/* =========================================================
+   ROUTE
+   ========================================================= */
+
+.waynora-route-line {
+  filter:
+    drop-shadow(
+      0 2px 4px rgba(37, 99, 235, 0.28)
+    );
+}
+
+.waynora-route-outline {
+  filter:
+    drop-shadow(
+      0 2px 3px rgba(15, 23, 42, 0.18)
+    );
+}
+
+/* =========================================================
+   NAVIGATION 3D MODE
+   ========================================================= */
+
+/*
+ * Leaflet nie posiada natywnej kamery 3D z pitch/bearing.
+ * Ten efekt wykorzystuje perspektywę CSS na pane mapy.
+ *
+ * Nie obracamy całego kontenera, ponieważ wtedy UI nawigacji
+ * również byłoby obrócone. Obracana jest tylko właściwa mapa.
+ */
+
+.waynora-navigation-3d {
+  background: #cbd5e1;
+}
+
+.waynora-navigation-3d .leaflet-map-pane {
+  transform-origin: 50% 78%;
+
+  transform:
+    perspective(1200px)
+    rotateX(48deg)
+    scale(1.18);
+
+  transition:
+    transform 700ms
+    cubic-bezier(0.22, 1, 0.36, 1);
+
+  will-change: transform;
+}
+
+/*
+ * W trybie nawigacji mapa dostaje delikatne przyciemnienie
+ * tylko w górnej części, dzięki czemu panel manewru jest
+ * czytelniejszy bez wymuszania ciemnego motywu.
+ */
+
+.waynora-navigation-3d::after {
+  content: "";
+
+  position: absolute;
+  inset: 0;
+
+  pointer-events: none;
+
+  z-index: 350;
+
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(15, 23, 42, 0.10),
+      transparent 24%,
+      transparent 78%,
+      rgba(15, 23, 42, 0.08)
+    );
+
+  opacity: 0.55;
+}
+
+.waynora-navigation-3d .leaflet-marker-icon {
+  transition:
+    filter 300ms ease;
+}
+
+.waynora-navigation-3d
+  .waynora-destination-marker {
+  filter:
+    drop-shadow(
+      0 8px 12px rgba(15, 23, 42, 0.25)
+    );
+}
+
+/* =========================================================
+   NAVIGATION OVERLAY
+   ========================================================= */
+
+.waynora-navigation-vignette {
+  position: absolute;
+  inset: 0;
+
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(15, 23, 42, 0.15) 0%,
+      transparent 18%,
+      transparent 75%,
+      rgba(15, 23, 42, 0.12) 100%
+    );
+}
+
+.waynora-navigation-horizon {
+  position: absolute;
+
+  left: 50%;
+  top: 0;
+
+  width: 100%;
+  height: 38%;
+
+  transform:
+    translateX(-50%)
+    perspective(800px)
+    rotateX(50deg);
+
+  transform-origin: center bottom;
+
+  pointer-events: none;
+
+  opacity: 0.22;
+
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.18),
+      transparent 70%
+    );
+
+  mask-image:
+    linear-gradient(
+      to bottom,
+      black,
+      transparent
+    );
+
+  -webkit-mask-image:
+    linear-gradient(
+      to bottom,
+      black,
+      transparent
+    );
+}
+
+/* =========================================================
+   NAVIGATION CARDS
+   ========================================================= */
+
+.waynora-navigation-card {
+  color: #0f172a;
+
+  background:
+    rgba(255, 255, 255, 0.94);
+
+  border:
+    1px solid rgba(226, 232, 240, 0.9);
+
   box-shadow:
-    0 24px 70px rgba(0, 0, 0, 0.42),
-    0 4px 18px rgba(0, 0, 0, 0.28);
-}
+    0 20px 60px rgba(15, 23, 42, 0.18),
+    0 5px 18px rgba(15, 23, 42, 0.08);
 
-.waynora-glass {
-  background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(22px);
   -webkit-backdrop-filter: blur(22px);
+
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease;
 }
 
-html.dark .waynora-glass {
-  background: rgba(15, 23, 42, 0.9);
+html.dark .waynora-navigation-card {
+  color: #ffffff;
+
+  background:
+    rgba(2, 6, 23, 0.93);
+
+  border-color:
+    rgba(51, 65, 85, 0.9);
+
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.45),
+    0 5px 18px rgba(0, 0, 0, 0.25);
 }
 
-/* ---------------------------------------------------------
-   ANIMATIONS
---------------------------------------------------------- */
+.waynora-navigation-divider {
+  height: 1px;
 
-@keyframes waynora-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-
-  50% {
-    transform: translateY(-8px);
-  }
+  background:
+    rgba(226, 232, 240, 0.9);
 }
 
-@keyframes waynora-pulse {
-  0% {
-    transform: scale(0.9);
-    opacity: 0.85;
-  }
-
-  70% {
-    transform: scale(1.18);
-    opacity: 0;
-  }
-
-  100% {
-    transform: scale(1.18);
-    opacity: 0;
-  }
+html.dark .waynora-navigation-divider {
+  background:
+    rgba(51, 65, 85, 0.8);
 }
 
-@keyframes waynora-slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(18px);
+.waynora-maneuver-icon {
+  display: flex;
+
+  width: 54px;
+  height: 54px;
+
+  flex-shrink: 0;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 18px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #7c3aed,
+      #2563eb
+    );
+
+  color: #ffffff;
+
+  box-shadow:
+    0 8px 20px rgba(37, 99, 235, 0.25);
+
+  font-size: 30px;
+  font-weight: 900;
+
+  line-height: 1;
+}
+
+.waynora-maneuver-icon span {
+  transform:
+    translateY(-1px);
+}
+
+.waynora-navigation-icon-button {
+  display: flex;
+
+  width: 42px;
+  height: 42px;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 999px;
+
+  color: #475569;
+
+  background:
+    rgba(241, 245, 249, 0.9);
+
+  transition:
+    transform 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.waynora-navigation-icon-button:hover {
+  background:
+    rgba(226, 232, 240, 1);
+
+  color: #0f172a;
+
+  transform: scale(1.04);
+}
+
+.waynora-navigation-icon-button:active {
+  transform: scale(0.94);
+}
+
+html.dark .waynora-navigation-icon-button {
+  color: #cbd5e1;
+
+  background:
+    rgba(30, 41, 59, 0.9);
+}
+
+html.dark .waynora-navigation-icon-button:hover {
+  background:
+    rgba(51, 65, 85, 0.95);
+
+  color: #ffffff;
+}
+
+.waynora-voice-button {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
+  min-height: 38px;
+
+  padding:
+    0 12px;
+
+  border-radius: 12px;
+
+  color: #334155;
+
+  background:
+    rgba(241, 245, 249, 0.95);
+
+  font-size: 12px;
+  font-weight: 800;
+
+  transition:
+    transform 150ms ease,
+    background-color 150ms ease;
+}
+
+.waynora-voice-button:hover {
+  background:
+    rgba(226, 232, 240, 1);
+}
+
+.waynora-voice-button:active {
+  transform: scale(0.96);
+}
+
+html.dark .waynora-voice-button {
+  color: #e2e8f0;
+
+  background:
+    rgba(30, 41, 59, 0.95);
+}
+
+html.dark .waynora-voice-button:hover {
+  background:
+    rgba(51, 65, 85, 1);
+}
+
+/* =========================================================
+   GENERAL UI
+   ========================================================= */
+
+::selection {
+  background: rgba(124, 58, 237, 0.2);
+}
+
+input::placeholder {
+  color: #94a3b8;
+}
+
+html.dark input::placeholder {
+  color: #64748b;
+}
+
+/* =========================================================
+   SAFE AREAS / MOBILE
+   ========================================================= */
+
+@supports (padding: max(0px)) {
+  body {
+    padding-bottom:
+      env(safe-area-inset-bottom);
   }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
-
-@keyframes waynora-fade-in {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-.waynora-float {
-  animation: waynora-float 3s ease-in-out infinite;
-}
-
-.waynora-slide-up {
-  animation: waynora-slide-up 0.45s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.waynora-fade-in {
-  animation: waynora-fade-in 0.3s ease;
-}
-
-/* ---------------------------------------------------------
-   MOBILE
---------------------------------------------------------- */
 
 @media (max-width: 639px) {
-  .waynora-navigation-map .leaflet-map-pane {
-    transform:
-      perspective(1000px)
-      rotateX(50deg)
-      scale(1.24);
-    transform-origin: 50% 61%;
+  .leaflet-control-attribution {
+    font-size: 7px !important;
+
+    padding:
+      2px 4px !important;
   }
 
-  .leaflet-control-attribution {
-    bottom: 1px !important;
+  .waynora-navigation-3d
+    .leaflet-map-pane {
+    transform:
+      perspective(900px)
+      rotateX(45deg)
+      scale(1.16);
+  }
+
+  .waynora-maneuver-icon {
+    width: 50px;
+    height: 50px;
+
+    border-radius: 16px;
+
+    font-size: 28px;
   }
 }
+
+/* =========================================================
+   TABLET / DESKTOP 3D
+   ========================================================= */
 
 @media (min-width: 640px) {
-  .leaflet-control-attribution {
-    font-size: 10px !important;
+  .waynora-navigation-3d
+    .leaflet-map-pane {
+    transform:
+      perspective(1400px)
+      rotateX(50deg)
+      scale(1.2);
   }
 }
 
-/* ---------------------------------------------------------
+/* =========================================================
    REDUCED MOTION
---------------------------------------------------------- */
+   ========================================================= */
 
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -396,7 +634,26 @@ html.dark .waynora-glass {
     transition-duration: 0.01ms !important;
   }
 
-  .waynora-navigation-map .leaflet-map-pane {
+  .waynora-navigation-3d
+    .leaflet-map-pane {
     transition: none !important;
   }
+}
+
+/* =========================================================
+   LEAFLET DARK MAP SUPPORT
+   ========================================================= */
+
+html.dark
+  .leaflet-control-attribution {
+  background:
+    rgba(15, 23, 42, 0.82) !important;
+
+  color: #94a3b8;
+}
+
+html.dark
+  .leaflet-control-attribution
+  a {
+  color: #cbd5e1;
 }
