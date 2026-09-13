@@ -13,9 +13,9 @@ export interface SearchResult {
   displayName: string;
   lat: number;
   lng: number;
-  type: string;
-  category: string;
-  name: string;
+  type?: string;
+  category?: string;
+  name?: string;
 }
 
 export interface RouteManeuver {
@@ -52,6 +52,7 @@ export interface SavedPlace {
   name: string;
   address: string;
   coordinates: Coordinates;
+  createdAt: number;
 }
 
 export interface FavoritePlace extends SavedPlace {}
@@ -61,22 +62,23 @@ export interface HistoryItem {
   name: string;
   address: string;
   coordinates: Coordinates;
-  timestamp: number;
+  visitedAt: number;
 }
 
 export interface Settings {
-  voice: boolean;
-  autoCenter: boolean;
-  units: 'metric' | 'imperial';
   darkMode: boolean;
-  autoReroute: boolean;
-  followLocation: boolean;
-  showTraffic: boolean;
+  voice: boolean;
+  units: 'metric' | 'imperial';
+  autoCenter: boolean;
+  autoReroute?: boolean;
+  followLocation?: boolean;
+  showTraffic?: boolean;
 }
 
 export type AppScreen =
   | 'start'
   | 'home'
+  | 'map'
   | 'search'
   | 'route'
   | 'navigation'
@@ -85,7 +87,7 @@ export type AppScreen =
   | 'settings';
 
 export type BottomTab =
-  | 'home'
+  | 'map'
   | 'favorites'
   | 'history'
   | 'settings';
