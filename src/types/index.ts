@@ -1,6 +1,6 @@
 export interface Coordinates {
-  latitude: number;
-  longitude: number;
+  lat: number;
+  lng: number;
   accuracy?: number;
   altitude?: number | null;
   altitudeAccuracy?: number | null;
@@ -32,57 +32,60 @@ export interface RouteStep {
   maneuver: RouteManeuver;
 }
 
+export interface RouteLeg {
+  distance: number;
+  duration: number;
+  steps: RouteStep[];
+}
+
 export interface Route {
   distance: number;
   duration: number;
   geometry: [number, number][];
   steps: RouteStep[];
   summary: string;
-  legs?: {
-    distance: number;
-    duration: number;
-    steps: RouteStep[];
-  }[];
+  legs?: RouteLeg[];
 }
 
-export interface FavoritePlace {
+export interface SavedPlace {
   id: string;
   name: string;
   address: string;
-  lat: number;
-  lng: number;
-  type?: string;
+  coordinates: Coordinates;
 }
+
+export interface FavoritePlace extends SavedPlace {}
 
 export interface HistoryItem {
   id: string;
   name: string;
   address: string;
-  lat: number;
-  lng: number;
+  coordinates: Coordinates;
   timestamp: number;
 }
 
-export interface SavedPlace {
-  lat: number;
-  lng: number;
-  name: string;
-  address?: string;
-}
-
 export interface Settings {
+  voice: boolean;
+  autoCenter: boolean;
+  units: 'metric' | 'imperial';
   darkMode: boolean;
-  voiceEnabled: boolean;
   autoReroute: boolean;
   followLocation: boolean;
   showTraffic: boolean;
 }
 
-export type AppView =
+export type AppScreen =
+  | 'start'
   | 'home'
   | 'search'
   | 'route'
   | 'navigation'
+  | 'favorites'
+  | 'history'
+  | 'settings';
+
+export type BottomTab =
+  | 'home'
   | 'favorites'
   | 'history'
   | 'settings';
