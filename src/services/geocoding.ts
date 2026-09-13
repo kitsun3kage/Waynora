@@ -9,12 +9,23 @@ export interface GeocodingResult {
   lon: string;
   type: string;
   category: string;
+  name?: string;
+}
+
+export interface SearchResult {
+  placeId: number;
+  displayName: string;
+  lat: number;
+  lng: number;
+  type: string;
+  category: string;
+  name: string;
 }
 
 export async function searchPlaces(
   query: string,
   signal?: AbortSignal
-): Promise<GeocodingResult[]> {
+): Promise<SearchResult[]> {
   const url = new URL(`${NOMINATIM_URL}/search`);
 
   url.searchParams.set('q', query);
@@ -31,8 +42,20 @@ export async function searchPlaces(
   });
 
   if (!response.ok) {
-    throw new Error(`Geocoding error: ${response.status}`);
+    throw new Error(
+      `Nie udało się wyszukać miejsca. Kod HTTP: ${response.status}`
+    );
   }
 
-  return response.json();
+  const data: GeocodingResult[] = await response.json();
+
+  return data.map((item) => ({
+    placeId: item.place_id,
+    displayName: item.display_name,
+    lat: Number(item.lat),
+    lng: Number(item.lon),
+    type: item.type,
+    category: item.category,
+    name: item.name || item.display_name.split(',')[0]
+  }));
 }
