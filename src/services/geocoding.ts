@@ -1,8 +1,10 @@
+import type { SearchResult } from '../types';
+
 const NOMINATIM_URL =
   import.meta.env.VITE_NOMINATIM_URL ||
   'https://nominatim.openstreetmap.org';
 
-export interface GeocodingResult {
+interface NominatimResult {
   place_id: number;
   display_name: string;
   lat: string;
@@ -10,16 +12,6 @@ export interface GeocodingResult {
   type: string;
   category: string;
   name?: string;
-}
-
-export interface SearchResult {
-  placeId: number;
-  displayName: string;
-  lat: number;
-  lng: number;
-  type: string;
-  category: string;
-  name: string;
 }
 
 export async function searchPlaces(
@@ -47,10 +39,10 @@ export async function searchPlaces(
     );
   }
 
-  const data: GeocodingResult[] = await response.json();
+  const data: NominatimResult[] = await response.json();
 
   return data.map((item) => ({
-    placeId: item.place_id,
+    placeId: String(item.place_id),
     displayName: item.display_name,
     lat: Number(item.lat),
     lng: Number(item.lon),
