@@ -48,22 +48,22 @@ interface OsrmResponse {
   routes?: OsrmRoute[];
 }
 
-function coordinatesToLatLng(
+function toLatLng(
   coordinates: Coordinates | [number, number]
 ): [number, number] {
   if (Array.isArray(coordinates)) {
     return [coordinates[0], coordinates[1]];
   }
 
-  return [coordinates.latitude, coordinates.longitude];
+  return [coordinates.lat, coordinates.lng];
 }
 
 export async function calculateRoute(
   from: Coordinates | [number, number],
   to: Coordinates | [number, number]
 ): Promise<CalculatedRoute> {
-  const fromLatLng = coordinatesToLatLng(from);
-  const toLatLng = coordinatesToLatLng(to);
+  const fromLatLng = toLatLng(from);
+  const toLatLng = toLatLng(to);
 
   const coordinates =
     `${fromLatLng[1]},${fromLatLng[0]};` +
@@ -86,13 +86,17 @@ export async function calculateRoute(
 
   const data: OsrmResponse = await response.json();
 
-  if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
+  if (
+    data.code !== 'Ok' ||
+    !data.routes ||
+    data.routes.length === 0
+  ) {
     throw new Error('Nie znaleziono trasy.');
   }
 
   const route = data.routes[0];
 
-  const steps: RouteStep[] = route.legs.flatMap(
+  const steps = route.legs.flatMap(
     (leg) => leg.steps
   );
 
