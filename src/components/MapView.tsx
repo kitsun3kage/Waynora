@@ -8,7 +8,7 @@ import {
 } from 'react-leaflet';
 
 import L from 'leaflet';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useRef } from 'react';
 
 import type {
   Coordinates,
@@ -24,10 +24,6 @@ interface MapViewProps {
   autoCenter: boolean;
   navigationMode: boolean;
 }
-
-/* ---------------------------------------------------------
-   DESTINATION MARKER
---------------------------------------------------------- */
 
 const destinationIcon = L.divIcon({
   className: 'waynora-destination-marker',
@@ -56,56 +52,20 @@ const destinationIcon = L.divIcon({
   iconAnchor: [21, 42],
 });
 
-/* ---------------------------------------------------------
-   NORMAL USER MARKER
---------------------------------------------------------- */
-
-const normalUserIcon = L.divIcon({
+const userIcon = L.divIcon({
   className: 'waynora-user-marker',
   html: `
-    <div style="
-      width:24px;
-      height:24px;
-      border-radius:50%;
-      background:#2563eb;
-      border:4px solid white;
-      box-shadow:
-        0 0 0 8px rgba(37,99,235,.18),
-        0 5px 15px rgba(0,0,0,.2);
-    "></div>
-  `,
-  iconSize: [24, 24],
-  iconAnchor: [12, 12],
-});
-
-/* ---------------------------------------------------------
-   NAVIGATION ARROW
---------------------------------------------------------- */
-
-function createNavigationIcon(heading?: number | null) {
-  const rotation =
-    typeof heading === 'number' && Number.isFinite(heading)
-      ? heading
-      : 0;
-
-  return L.divIcon({
-    className: 'waynora-user-marker',
-    html: `
-      <div
-        class="waynora-navigation-arrow"
-        style="transform:rotate(${rotation}deg)"
-      >
-        <div class="waynora-navigation-arrow__body"></div>
+    <div class="waynora-user-location">
+      <div class="waynora-user-heading">
+        <div class="waynora-user-heading-inner"></div>
       </div>
-    `,
-    iconSize: [46, 58],
-    iconAnchor: [23, 29],
-  });
-}
 
-/* ---------------------------------------------------------
-   MAP CAMERA CONTROLLER
---------------------------------------------------------- */
+      <div class="waynora-user-dot"></div>
+    </div>
+  `,
+  iconSize: [54, 54],
+  iconAnchor: [27, 27],
+});
 
 function MapController({
   userPosition,
@@ -118,61 +78,72 @@ function MapController({
 }) {
   const map = useMap();
 
-  useEffect(() => {
-    const container = map.getContainer();
-
-    if (navigationMode) {
-      container.classList.add('waynora-navigation-map');
-    } else {
-      container.classList.remove('waynora-navigation-map');
-    }
-
-    return () => {
-      container.classList.remove('waynora-navigation-map');
-    };
-  }, [map, navigationMode]);
+  const previousNavigationMode =
+    useRef(navigationMode);
 
   useEffect(() => {
     if (!userPosition || !autoCenter) {
       return;
     }
 
-    const zoom = navigationMode ? 17 : 14;
+    const target: [number, number] = [
+      userPosition.lat,
+      userPosition.lng,
+    ];
 
-    /*
-     * In navigation mode the user marker is intentionally
-     * placed slightly below the center of the screen.
-     *
-     * This imitates the camera framing used by modern
-     * navigation applications.
-     */
+    const enteringNavigation =
+      navigationMode &&
+      !previousNavigationMode.current;
+
+    const leavingNavigation =
+      !navigationMode &&
+      previousNavigationMode.current;
+
+    previousNavigationMode.current =
+      navigationMode;
+
+    if (enteringNavigation) {
+      map.flyTo(
+        target,
+        17,
+        {
+          duration: 1.2,
+          easeLinearity: 0.15,
+        },
+      );
+
+      return;
+    }
+
+    if (leavingNavigation) {
+      map.flyTo(
+        target,
+        14,
+        {
+          duration: 0.9,
+          easeLinearity: 0.2,
+        },
+      );
+
+      return;
+    }
+
     if (navigationMode) {
-      const targetPoint = map.project(
-        [userPosition.lat, userPosition.lng],
-        zoom,
+      map.flyTo(
+        target,
+        17,
+        {
+          duration: 0.7,
+          easeLinearity: 0.15,
+        },
       );
-
-      const offsetPoint = L.point(
-        targetPoint.x,
-        targetPoint.y + 120,
-      );
-
-      const target = map.unproject(
-        offsetPoint,
-        zoom,
-      );
-
-      map.flyTo(target, zoom, {
-        duration: 0.8,
-        easeLinearity: 0.15,
-      });
 
       return;
     }
 
     map.flyTo(
-      [userPosition.lat, userPosition.lng],
-      zoom,
+      target,
+      14,
       {
         duration: 0.8,
         easeLinearity: 0.2,
@@ -185,12 +156,89 @@ function MapController({
     userPosition,
   ]);
 
+  useEffect(() => {
+    const container =
+      map.getContainer();
+
+    if (navigationMode) {
+      container.classList.add(
+        'waynora-navigation-3d',
+      );
+    } else {
+      container.classList.remove(
+        'waynora-navigation-3d',
+      );
+    }
+
+    return () => {
+      container.classList.remove(
+        'waynora-navigation-3d',
+      );
+    };
+  }, [
+    map,
+    navigationMode,
+  ]);
+
   return null;
 }
 
-/* ---------------------------------------------------------
-   MAP VIEW
---------------------------------------------------------- */
+function NavigationCamera({
+  navigationMode,
+  heading,
+}: {
+  navigationMode: boolean;
+  heading: number | null | undefined;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!navigationMode) {
+      return;
+    }
+
+    const container =
+      map.getContainer();
+
+    if (
+      heading === null ||
+      heading === undefined ||
+      Number.isNaN(heading)
+    ) {
+      container.style.setProperty(
+        '--waynora-heading',
+        '0deg',
+      );
+
+      return;
+    }
+
+    container.style.setProperty(
+      '--waynora-heading',
+      `${-heading}deg`,
+    );
+  }, [
+    heading,
+    map,
+    navigationMode,
+  ]);
+
+  useEffect(() => {
+    const container =
+      map.getContainer();
+
+    if (!navigationMode) {
+      container.style.removeProperty(
+        '--waynora-heading',
+      );
+    }
+  }, [
+    map,
+    navigationMode,
+  ]);
+
+  return null;
+}
 
 export default function MapView({
   userPosition,
@@ -207,105 +255,135 @@ export default function MapView({
         ]
       : [52.2297, 21.0122];
 
-  const navigationIcon = useMemo(
-    () =>
-      createNavigationIcon(
-        userPosition?.heading,
-      ),
-    [userPosition?.heading],
-  );
+  const heading =
+    userPosition?.heading;
 
   return (
-    <MapContainer
-      center={initialCenter}
-      zoom={13}
-      zoomControl={false}
-      className="absolute inset-0 z-0 h-full w-full"
+    <div
+      className={[
+        'absolute',
+        'inset-0',
+        'z-0',
+        'h-full',
+        'w-full',
+        navigationMode
+          ? 'waynora-map-navigation-active'
+          : '',
+      ].join(' ')}
     >
-      <TileLayer
-        attribution="&copy; OpenStreetMap contributors"
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-
-      <MapController
-        userPosition={userPosition}
-        autoCenter={autoCenter}
-        navigationMode={navigationMode}
-      />
-
-      {/* Route shadow */}
-      {route && (
-        <Polyline
-          positions={route.geometry}
-          pathOptions={{
-            color: '#0f172a',
-            weight: navigationMode ? 13 : 11,
-            opacity: navigationMode ? 0.22 : 0.12,
-            lineCap: 'round',
-            lineJoin: 'round',
-          }}
+      <MapContainer
+        center={initialCenter}
+        zoom={13}
+        zoomControl={false}
+        attributionControl={true}
+        className="absolute inset-0 z-0 h-full w-full"
+      >
+        <TileLayer
+          attribution="&copy; OpenStreetMap contributors"
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maxZoom={19}
         />
-      )}
 
-      {/* Main route */}
-      {route && (
-        <Polyline
-          positions={route.geometry}
-          pathOptions={{
-            color: '#2563eb',
-            weight: navigationMode ? 8 : 7,
-            opacity: 0.92,
-            lineCap: 'round',
-            lineJoin: 'round',
-          }}
+        <MapController
+          userPosition={userPosition}
+          autoCenter={autoCenter}
+          navigationMode={navigationMode}
         />
-      )}
 
-      {/* User position */}
-      {userPosition && (
-        <>
-          {!navigationMode && (
+        <NavigationCamera
+          navigationMode={
+            navigationMode
+          }
+          heading={heading}
+        />
+
+        {route && (
+          <>
+            <Polyline
+              positions={route.geometry}
+              pathOptions={{
+                color: '#ffffff',
+                weight: navigationMode
+                  ? 13
+                  : 11,
+                opacity: navigationMode
+                  ? 0.9
+                  : 0.65,
+                lineCap: 'round',
+                lineJoin: 'round',
+              }}
+              className="waynora-route-outline"
+            />
+
+            <Polyline
+              positions={route.geometry}
+              pathOptions={{
+                color: '#2563eb',
+                weight: navigationMode
+                  ? 8
+                  : 7,
+                opacity: 0.95,
+                lineCap: 'round',
+                lineJoin: 'round',
+              }}
+              className="waynora-route-line"
+            />
+          </>
+        )}
+
+        {userPosition && (
+          <>
             <CircleMarker
               center={[
                 userPosition.lat,
                 userPosition.lng,
               ]}
-              radius={20}
+              radius={
+                navigationMode
+                  ? 28
+                  : 20
+              }
               pathOptions={{
                 color: '#2563eb',
                 fillColor: '#2563eb',
-                fillOpacity: 0.08,
+                fillOpacity:
+                  navigationMode
+                    ? 0.11
+                    : 0.08,
                 weight: 0,
               }}
             />
-          )}
 
+            <Marker
+              position={[
+                userPosition.lat,
+                userPosition.lng,
+              ]}
+              icon={userIcon}
+              zIndexOffset={1000}
+            />
+          </>
+        )}
+
+        {destination && (
           <Marker
             position={[
-              userPosition.lat,
-              userPosition.lng,
+              destination.lat,
+              destination.lng,
             ]}
-            icon={
-              navigationMode
-                ? navigationIcon
-                : normalUserIcon
-            }
-            zIndexOffset={1000}
+            icon={destinationIcon}
+            zIndexOffset={500}
           />
-        </>
-      )}
+        )}
+      </MapContainer>
 
-      {/* Destination */}
-      {destination && (
-        <Marker
-          position={[
-            destination.lat,
-            destination.lng,
-          ]}
-          icon={destinationIcon}
-          zIndexOffset={900}
-        />
+      {navigationMode && (
+        <div className="pointer-events-none absolute inset-0 z-[400]">
+          <div className="waynora-navigation-vignette" />
+
+          <div className="waynora-navigation-horizon" />
+        </div>
       )}
-    </MapContainer>
+    </div>
   );
 }
