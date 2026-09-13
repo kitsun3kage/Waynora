@@ -48,7 +48,7 @@ interface OsrmResponse {
   routes?: OsrmRoute[];
 }
 
-function toLatLng(
+function coordinatesToLatLng(
   coordinates: Coordinates | [number, number]
 ): [number, number] {
   if (Array.isArray(coordinates)) {
@@ -62,12 +62,12 @@ export async function calculateRoute(
   from: Coordinates | [number, number],
   to: Coordinates | [number, number]
 ): Promise<CalculatedRoute> {
-  const fromLatLng = toLatLng(from);
-  const toLatLng = toLatLng(to);
+  const fromLatLng = coordinatesToLatLng(from);
+  const destinationLatLng = coordinatesToLatLng(to);
 
   const coordinates =
     `${fromLatLng[1]},${fromLatLng[0]};` +
-    `${toLatLng[1]},${toLatLng[0]}`;
+    `${destinationLatLng[1]},${destinationLatLng[0]}`;
 
   const url =
     `${ROUTING_URL}/route/v1/driving/${coordinates}` +
@@ -108,7 +108,7 @@ export async function calculateRoute(
     ),
     legs: route.legs,
     steps,
-    summary: route.name || 'Trasa'
+    summary: route.name || 'Trasa',
   };
 }
 
