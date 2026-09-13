@@ -8,7 +8,7 @@ import {
 } from 'react-leaflet';
 
 import L from 'leaflet';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 
 import type {
   Coordinates,
@@ -24,6 +24,10 @@ interface MapViewProps {
   autoCenter: boolean;
   navigationMode: boolean;
 }
+
+/* ---------------------------------------------------------
+   DESTINATION MARKER
+--------------------------------------------------------- */
 
 const destinationIcon = L.divIcon({
   className: 'waynora-destination-marker',
@@ -52,7 +56,11 @@ const destinationIcon = L.divIcon({
   iconAnchor: [21, 42],
 });
 
-const userIcon = L.divIcon({
+/* ---------------------------------------------------------
+   NORMAL USER MARKER
+--------------------------------------------------------- */
+
+const normalUserIcon = L.divIcon({
   className: 'waynora-user-marker',
   html: `
     <div style="
@@ -61,12 +69,43 @@ const userIcon = L.divIcon({
       border-radius:50%;
       background:#2563eb;
       border:4px solid white;
-      box-shadow:0 0 0 8px rgba(37,99,235,.18), 0 5px 15px rgba(0,0,0,.2);
+      box-shadow:
+        0 0 0 8px rgba(37,99,235,.18),
+        0 5px 15px rgba(0,0,0,.2);
     "></div>
   `,
   iconSize: [24, 24],
   iconAnchor: [12, 12],
 });
+
+/* ---------------------------------------------------------
+   NAVIGATION ARROW
+--------------------------------------------------------- */
+
+function createNavigationIcon(heading?: number | null) {
+  const rotation =
+    typeof heading === 'number' && Number.isFinite(heading)
+      ? heading
+      : 0;
+
+  return L.divIcon({
+    className: 'waynora-user-marker',
+    html: `
+      <div
+        class="waynora-navigation-arrow"
+        style="transform:rotate(${rotation}deg)"
+      >
+        <div class="waynora-navigation-arrow__body"></div>
+      </div>
+    `,
+    iconSize: [46, 58],
+    iconAnchor: [23, 29],
+  });
+}
+
+/* ---------------------------------------------------------
+   MAP CAMERA CONTROLLER
+--------------------------------------------------------- */
 
 function MapController({
   userPosition,
@@ -80,15 +119,63 @@ function MapController({
   const map = useMap();
 
   useEffect(() => {
+    const container = map.getContainer();
+
+    if (navigationMode) {
+      container.classList.add('waynora-navigation-map');
+    } else {
+      container.classList.remove('waynora-navigation-map');
+    }
+
+    return () => {
+      container.classList.remove('waynora-navigation-map');
+    };
+  }, [map, navigationMode]);
+
+  useEffect(() => {
     if (!userPosition || !autoCenter) {
+      return;
+    }
+
+    const zoom = navigationMode ? 17 : 14;
+
+    /*
+     * In navigation mode the user marker is intentionally
+     * placed slightly below the center of the screen.
+     *
+     * This imitates the camera framing used by modern
+     * navigation applications.
+     */
+    if (navigationMode) {
+      const targetPoint = map.project(
+        [userPosition.lat, userPosition.lng],
+        zoom,
+      );
+
+      const offsetPoint = L.point(
+        targetPoint.x,
+        targetPoint.y + 120,
+      );
+
+      const target = map.unproject(
+        offsetPoint,
+        zoom,
+      );
+
+      map.flyTo(target, zoom, {
+        duration: 0.8,
+        easeLinearity: 0.15,
+      });
+
       return;
     }
 
     map.flyTo(
       [userPosition.lat, userPosition.lng],
-      navigationMode ? 17 : 14,
+      zoom,
       {
         duration: 0.8,
+        easeLinearity: 0.2,
       },
     );
   }, [
@@ -101,6 +188,10 @@ function MapController({
   return null;
 }
 
+/* ---------------------------------------------------------
+   MAP VIEW
+--------------------------------------------------------- */
+
 export default function MapView({
   userPosition,
   destination,
@@ -110,8 +201,19 @@ export default function MapView({
 }: MapViewProps) {
   const initialCenter: [number, number] =
     userPosition
-      ? [userPosition.lat, userPosition.lng]
+      ? [
+          userPosition.lat,
+          userPosition.lng,
+        ]
       : [52.2297, 21.0122];
+
+  const navigationIcon = useMemo(
+    () =>
+      createNavigationIcon(
+        userPosition?.heading,
+      ),
+    [userPosition?.heading],
+  );
 
   return (
     <MapContainer
@@ -121,7 +223,7 @@ export default function MapView({
       className="absolute inset-0 z-0 h-full w-full"
     >
       <TileLayer
-        attribution='&copy; OpenStreetMap contributors'
+        attribution="&copy; OpenStreetMap contributors"
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
@@ -131,45 +233,69 @@ export default function MapView({
         navigationMode={navigationMode}
       />
 
+      {/* Route shadow */}
       {route && (
         <Polyline
           positions={route.geometry}
           pathOptions={{
-            color: '#2563eb',
-            weight: 8,
-            opacity: 0.85,
+            color: '#0f172a',
+            weight: navigationMode ? 13 : 11,
+            opacity: navigationMode ? 0.22 : 0.12,
             lineCap: 'round',
             lineJoin: 'round',
           }}
         />
       )}
 
+      {/* Main route */}
+      {route && (
+        <Polyline
+          positions={route.geometry}
+          pathOptions={{
+            color: '#2563eb',
+            weight: navigationMode ? 8 : 7,
+            opacity: 0.92,
+            lineCap: 'round',
+            lineJoin: 'round',
+          }}
+        />
+      )}
+
+      {/* User position */}
       {userPosition && (
         <>
-          <CircleMarker
-            center={[
-              userPosition.lat,
-              userPosition.lng,
-            ]}
-            radius={20}
-            pathOptions={{
-              color: '#2563eb',
-              fillColor: '#2563eb',
-              fillOpacity: 0.08,
-              weight: 0,
-            }}
-          />
+          {!navigationMode && (
+            <CircleMarker
+              center={[
+                userPosition.lat,
+                userPosition.lng,
+              ]}
+              radius={20}
+              pathOptions={{
+                color: '#2563eb',
+                fillColor: '#2563eb',
+                fillOpacity: 0.08,
+                weight: 0,
+              }}
+            />
+          )}
 
           <Marker
             position={[
               userPosition.lat,
               userPosition.lng,
             ]}
-            icon={userIcon}
+            icon={
+              navigationMode
+                ? navigationIcon
+                : normalUserIcon
+            }
+            zIndexOffset={1000}
           />
         </>
       )}
 
+      {/* Destination */}
       {destination && (
         <Marker
           position={[
@@ -177,6 +303,7 @@ export default function MapView({
             destination.lng,
           ]}
           icon={destinationIcon}
+          zIndexOffset={900}
         />
       )}
     </MapContainer>
