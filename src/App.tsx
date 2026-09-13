@@ -1,3 +1,4 @@
+```tsx
 import {
   LocateFixed,
   Menu,
@@ -8,7 +9,6 @@ import {
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -36,6 +36,7 @@ import type {
   SearchResult,
   Settings,
   Route,
+  Coordinates,
 } from './types';
 
 import {
@@ -43,6 +44,10 @@ import {
 } from './utils/navigation';
 
 function App() {
+  /* -------------------------------------------------------
+     SCREEN / NAVIGATION STATE
+  ------------------------------------------------------- */
+
   const [screen, setScreen] =
     useState<AppScreen>('start');
 
@@ -72,6 +77,10 @@ function App() {
 
   const [muted, setMuted] =
     useState(false);
+
+  /* -------------------------------------------------------
+     LOCAL STORAGE
+  ------------------------------------------------------- */
 
   const [favorites, setFavorites] =
     useLocalStorage<SavedPlace[]>(
@@ -105,20 +114,40 @@ function App() {
         voice: true,
         units: 'metric',
         autoCenter: true,
+        autoReroute: true,
+        followLocation: true,
+        showTraffic: false,
       },
     );
+
+  /* -------------------------------------------------------
+     GEOLOCATION
+  ------------------------------------------------------- */
 
   const {
     position,
     error: locationError,
     requestLocation,
-  } = useGeolocation(screen !== 'start');
+  } = useGeolocation(
+    screen !== 'start',
+  );
+
+  /* -------------------------------------------------------
+     NAVIGATION REFS
+  ------------------------------------------------------- */
 
   const lastSpokenStep =
     useRef<string | null>(null);
 
   const previousPosition =
-    useRef(position);
+    useRef<Coordinates | null>(null);
+
+  const navigationStarted =
+    useRef(false);
+
+  /* -------------------------------------------------------
+     DARK MODE
+  ------------------------------------------------------- */
 
   useEffect(() => {
     document.documentElement.classList.toggle(
@@ -127,11 +156,21 @@ function App() {
     );
   }, [settings.darkMode]);
 
+  /* -------------------------------------------------------
+     LOCATION ERRORS
+  ------------------------------------------------------- */
+
   useEffect(() => {
-    if (locationError) {
-      setStatus(locationError);
+    if (!locationError) {
+      return;
     }
+
+    setStatus(locationError);
   }, [locationError]);
+
+  /* -------------------------------------------------------
+     SPEECH
+  ------------------------------------------------------- */
 
   const speak = useCallback(
     (text: string) => {
@@ -151,23 +190,37 @@ function App() {
       utterance.lang = 'pl-PL';
       utterance.rate = 1;
       utterance.pitch = 1;
+      utterance.volume = 1;
 
       window.speechSynthesis.speak(
         utterance,
       );
     },
-    [muted, settings.voice],
+    [
+      muted,
+      settings.voice,
+    ],
   );
 
+  /* -------------------------------------------------------
+     SEARCH / DESTINATION
+  ------------------------------------------------------- */
+
   const selectDestination = useCallback(
-    async (result: SearchResult) => {
+    async (
+      result: SearchResult,
+    ) => {
       setDestination(result);
       setActiveTab('map');
       setPanel(null);
+      setSettingsOpen(false);
 
-      const item: HistoryItem = {
-        id: `${result.placeId}-${Date.now()}`,
+      const now = Date.now();
+
+      const historyItem: HistoryItem = {
+        id: `${result.placeId}-${now}`,
         name:
+          result.name ||
           result.displayName.split(',')[0] ||
           'Miejsce',
         address: result.displayName,
@@ -175,22 +228,29 @@ function App() {
           lat: result.lat,
           lng: result.lng,
         },
-        visitedAt: Date.now(),
+        visitedAt: now,
       };
 
       setHistory((current) => [
-        item,
+        historyItem,
         ...current.filter(
           (existing) =>
             existing.coordinates.lat !==
-              item.coordinates.lat ||
+              historyItem.coordinates.lat ||
             existing.coordinates.lng !==
-              item.coordinates.lng,
+              historyItem.coordinates.lng,
         ),
       ].slice(0, 20));
 
       if (!position) {
+        setRoute(null);
+        setCalculating(false);
         requestLocation();
+
+        setStatus(
+          'Pobieram Twoją lokalizację GPS…',
+        );
+
         return;
       }
 
@@ -208,7 +268,16 @@ function App() {
           );
 
         setRoute(newRoute);
-      } catch {
+
+        setStatus(
+          'Trasa została wyznaczona.',
+        );
+      } catch (error) {
+        console.error(
+          'Route calculation error:',
+          error,
+        );
+
         setStatus(
           'Nie udało się wyznaczyć trasy. Spróbuj ponownie.',
         );
@@ -223,46 +292,151 @@ function App() {
     ],
   );
 
+  /* -------------------------------------------------------
+     AUTO ROUTE CALCULATION AFTER GPS APPEARS
+  ------------------------------------------------------- */
+
   useEffect(() => {
     if (
-      !destination ||
       !position ||
-      !screen ||
+      !destination ||
+      route ||
+      calculating ||
       screen === 'start'
     ) {
       return;
     }
 
+    let cancelled = false;
+
+    const buildRoute =
+      async () => {
+        setCalculating(true);
+
+        try {
+          const newRoute =
+            await calculateRoute(
+              position,
+              {
+                lat: destination.lat,
+                lng: destination.lng,
+              },
+            );
+
+          if (!cancelled) {
+            setRoute(newRoute);
+            setStatus(
+              'Trasa gotowa.',
+            );
+          }
+        } catch (error) {
+          console.error(
+            'Automatic route calculation error:',
+            error,
+          );
+
+          if (!cancelled) {
+            setStatus(
+              'Nie udało się wyznaczyć trasy.',
+            );
+          }
+        } finally {
+          if (!cancelled) {
+            setCalculating(false);
+          }
+        }
+      };
+
+    void buildRoute();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    calculating,
+    destination,
+    position,
+    route,
+    screen,
+  ]);
+
+  /* -------------------------------------------------------
+     OFF-ROUTE DETECTION / REROUTING
+  ------------------------------------------------------- */
+
+  useEffect(() => {
     if (
-      !previousPosition.current ||
+      screen !== 'navigation' ||
+      !destination ||
+      !position ||
       !route ||
-      screen !== 'navigation'
+      !settings.autoReroute
     ) {
-      previousPosition.current = position;
+      previousPosition.current =
+        position;
+
       return;
     }
 
-    const moved = distanceBetween(
-      previousPosition.current,
-      position,
-    );
+    const previous =
+      previousPosition.current;
 
-    if (moved < 10) {
+    if (!previous) {
+      previousPosition.current =
+        position;
+
       return;
     }
 
-    previousPosition.current = position;
+    const moved =
+      distanceBetween(
+        previous,
+        position,
+      );
 
-    const nearest = Math.min(
-      ...route.geometry.map((point) =>
-        distanceBetween(position, {
-          lat: point[0],
-          lng: point[1],
-        }),
-      ),
-    );
+    if (moved < 8) {
+      return;
+    }
 
-    if (nearest > 70 && !rerouting) {
+    previousPosition.current =
+      position;
+
+    if (!route.geometry.length) {
+      return;
+    }
+
+    let nearestDistance =
+      Number.POSITIVE_INFINITY;
+
+    for (
+      const point of route.geometry
+    ) {
+      const distance =
+        distanceBetween(
+          position,
+          {
+            lat: point[0],
+            lng: point[1],
+          },
+        );
+
+      if (
+        distance <
+        nearestDistance
+      ) {
+        nearestDistance =
+          distance;
+      }
+    }
+
+    /*
+     * 70 m is a reasonable threshold
+     * for an initial frontend navigation system.
+     */
+    if (
+      nearestDistance > 70 &&
+      !rerouting
+    ) {
       setRerouting(true);
 
       calculateRoute(
@@ -274,9 +448,20 @@ function App() {
       )
         .then((newRoute) => {
           setRoute(newRoute);
-          speak('Trasa została ponownie wyznaczona.');
+
+          lastSpokenStep.current =
+            null;
+
+          speak(
+            'Zjechałeś z trasy. Wyznaczam nową trasę.',
+          );
         })
-        .catch(() => {
+        .catch((error) => {
+          console.error(
+            'Rerouting error:',
+            error,
+          );
+
           setStatus(
             'Nie udało się ponownie wyznaczyć trasy.',
           );
@@ -291,79 +476,326 @@ function App() {
     rerouting,
     route,
     screen,
+    settings.autoReroute,
     speak,
   ]);
+
+  /* -------------------------------------------------------
+     VOICE NAVIGATION
+  ------------------------------------------------------- */
 
   useEffect(() => {
     if (
       screen !== 'navigation' ||
-      !route?.steps?.length
+      !route?.steps?.length ||
+      !position
     ) {
       return;
     }
 
-    const step = route.steps[0];
+    let nearestIndex = 0;
+    let nearestDistance =
+      Number.POSITIVE_INFINITY;
 
-    const stepId = `${step.name}-${step.distance}-${step.maneuver.type}-${step.maneuver.modifier}`;
+    route.steps.forEach(
+      (step, index) => {
+        const [
+          lat,
+          lng,
+        ] =
+          step.maneuver.location;
 
-    if (lastSpokenStep.current === stepId) {
+        const distance =
+          distanceBetween(
+            position,
+            {
+              lat,
+              lng,
+            },
+          );
+
+        if (
+          distance <
+          nearestDistance
+        ) {
+          nearestDistance =
+            distance;
+
+          nearestIndex =
+            index;
+        }
+      },
+    );
+
+    /*
+     * Slight look-ahead so the voice
+     * doesn't wait until the exact maneuver.
+     */
+    const step =
+      route.steps[
+        Math.min(
+          nearestIndex,
+          route.steps.length - 1,
+        )
+      ];
+
+    if (!step) {
       return;
     }
 
-    if (step.distance <= 350) {
-      lastSpokenStep.current = stepId;
+    const stepId =
+      `${nearestIndex}-${step.name}-${step.distance}-${step.maneuver.type}-${step.maneuver.modifier}`;
 
-      const direction =
-        step.maneuver.modifier === 'left'
-          ? 'w lewo'
-          : step.maneuver.modifier === 'right'
-            ? 'w prawo'
-            : '';
-
-      speak(
-        `Za ${Math.round(step.distance)} metrów ${
-          direction
-            ? `skręć ${direction}`
-            : 'kontynuuj jazdę'
-        }.`,
-      );
+    if (
+      lastSpokenStep.current ===
+      stepId
+    ) {
+      return;
     }
-  }, [route, screen, speak]);
+
+    const [
+      maneuverLat,
+      maneuverLng,
+    ] =
+      step.maneuver.location;
+
+    const distanceToManeuver =
+      distanceBetween(
+        position,
+        {
+          lat: maneuverLat,
+          lng: maneuverLng,
+        },
+      );
+
+    /*
+     * Voice announcement thresholds.
+     */
+    if (
+      distanceToManeuver >
+      350
+    ) {
+      return;
+    }
+
+    lastSpokenStep.current =
+      stepId;
+
+    let instruction =
+      'kontynuuj jazdę';
+
+    if (
+      step.maneuver.type ===
+      'arrive'
+    ) {
+      instruction =
+        'dotarłeś do celu';
+    } else if (
+      step.maneuver.modifier ===
+      'left'
+    ) {
+      instruction =
+        'skręć w lewo';
+    } else if (
+      step.maneuver.modifier ===
+      'right'
+    ) {
+      instruction =
+        'skręć w prawo';
+    } else if (
+      step.maneuver.modifier ===
+      'slight left'
+    ) {
+      instruction =
+        'lekko w lewo';
+    } else if (
+      step.maneuver.modifier ===
+      'slight right'
+    ) {
+      instruction =
+        'lekko w prawo';
+    } else if (
+      step.maneuver.modifier ===
+      'sharp left'
+    ) {
+      instruction =
+        'ostro w lewo';
+    } else if (
+      step.maneuver.modifier ===
+      'sharp right'
+    ) {
+      instruction =
+        'ostro w prawo';
+    } else if (
+      step.maneuver.type ===
+      'roundabout'
+    ) {
+      instruction =
+        'wjedź na rondo';
+    }
+
+    speak(
+      `Za ${Math.round(
+        distanceToManeuver,
+      )} metrów ${instruction}.`,
+    );
+  }, [
+    position,
+    route,
+    screen,
+    speak,
+  ]);
+
+  /* -------------------------------------------------------
+     ARRIVAL DETECTION
+  ------------------------------------------------------- */
+
+  useEffect(() => {
+    if (
+      screen !== 'navigation' ||
+      !position ||
+      !destination
+    ) {
+      return;
+    }
+
+    const distance =
+      distanceBetween(
+        position,
+        {
+          lat: destination.lat,
+          lng: destination.lng,
+        },
+      );
+
+    if (distance <= 30) {
+      speak(
+        'Dotarłeś do celu.',
+      );
+
+      setStatus(
+        'Dotarłeś do celu.',
+      );
+
+      navigationStarted.current =
+        false;
+
+      setScreen('map');
+
+      if (
+        'speechSynthesis' in
+        window
+      ) {
+        window.speechSynthesis.cancel();
+      }
+    }
+  }, [
+    destination,
+    position,
+    screen,
+    speak,
+  ]);
+
+  /* -------------------------------------------------------
+     START APP
+  ------------------------------------------------------- */
 
   function startApp() {
     setScreen('map');
+    setActiveTab('map');
+    setPanel(null);
+    setSettingsOpen(false);
+
     requestLocation();
   }
 
+  /* -------------------------------------------------------
+     START NAVIGATION
+  ------------------------------------------------------- */
+
   function startNavigation() {
-    if (!position || !route) {
+    if (!position) {
       setStatus(
         'Poczekaj na uzyskanie lokalizacji GPS.',
       );
 
       requestLocation();
+
+      return;
+    }
+
+    if (!route) {
+      setStatus(
+        'Najpierw wyznacz trasę.',
+      );
+
       return;
     }
 
     setScreen('navigation');
-    setMuted(false);
-    lastSpokenStep.current = null;
 
-    speak('Rozpoczynam nawigację.');
+    setActiveTab('map');
+    setPanel(null);
+    setSettingsOpen(false);
+
+    setMuted(false);
+
+    lastSpokenStep.current =
+      null;
+
+    previousPosition.current =
+      position;
+
+    navigationStarted.current =
+      true;
+
+    speak(
+      'Rozpoczynam nawigację.',
+    );
   }
+
+  /* -------------------------------------------------------
+     EXIT NAVIGATION
+  ------------------------------------------------------- */
 
   function exitNavigation() {
-    setScreen('map');
+    navigationStarted.current =
+      false;
 
-    if ('speechSynthesis' in window) {
+    setScreen('map');
+    setActiveTab('map');
+
+    if (
+      'speechSynthesis' in
+      window
+    ) {
       window.speechSynthesis.cancel();
     }
+
+    lastSpokenStep.current =
+      null;
   }
 
+  /* -------------------------------------------------------
+     CLOSE ROUTE
+  ------------------------------------------------------- */
+
   function closeRoute() {
+    if (
+      screen === 'navigation'
+    ) {
+      exitNavigation();
+    }
+
     setDestination(null);
     setRoute(null);
+    setCalculating(false);
+    setRerouting(false);
   }
+
+  /* -------------------------------------------------------
+     FAVORITES
+  ------------------------------------------------------- */
 
   function saveFavorite() {
     if (!destination) {
@@ -373,9 +805,11 @@ function App() {
     const place: SavedPlace = {
       id: destination.placeId,
       name:
+        destination.name ||
         destination.displayName.split(',')[0] ||
         'Miejsce',
-      address: destination.displayName,
+      address:
+        destination.displayName,
       coordinates: {
         lat: destination.lat,
         lng: destination.lng,
@@ -384,116 +818,217 @@ function App() {
     };
 
     setFavorites((current) => {
-      if (
+      const exists =
         current.some(
-          (item) => item.id === place.id,
-        )
-      ) {
+          (item) =>
+            item.id ===
+            place.id,
+        );
+
+      if (exists) {
+        setStatus(
+          'Usunięto z ulubionych.',
+        );
+
         return current.filter(
-          (item) => item.id !== place.id,
+          (item) =>
+            item.id !== place.id,
         );
       }
 
-      return [place, ...current];
+      setStatus(
+        'Dodano do ulubionych.',
+      );
+
+      return [
+        place,
+        ...current,
+      ];
     });
   }
 
-  function deleteFavorite(id: string) {
+  function deleteFavorite(
+    id: string,
+  ) {
     setFavorites((current) =>
-      current.filter((item) => item.id !== id),
+      current.filter(
+        (item) =>
+          item.id !== id,
+      ),
+    );
+
+    setStatus(
+      'Usunięto z ulubionych.',
     );
   }
 
-  function setTab(tab: BottomTab) {
+  /* -------------------------------------------------------
+     BOTTOM NAVIGATION
+  ------------------------------------------------------- */
+
+  function setTab(
+    tab: BottomTab,
+  ) {
+    if (
+      screen === 'navigation'
+    ) {
+      exitNavigation();
+    }
+
     setActiveTab(tab);
 
     if (tab === 'map') {
       setPanel(null);
       setSettingsOpen(false);
+      setScreen('map');
+
+      return;
     }
 
-    if (tab === 'favorites') {
+    if (
+      tab === 'favorites'
+    ) {
       setPanel('favorites');
       setSettingsOpen(false);
+      setScreen('map');
+
+      return;
     }
 
-    if (tab === 'history') {
+    if (
+      tab === 'history'
+    ) {
       setPanel('history');
       setSettingsOpen(false);
+      setScreen('map');
+
+      return;
     }
 
-    if (tab === 'settings') {
+    if (
+      tab === 'settings'
+    ) {
       setPanel(null);
       setSettingsOpen(true);
+      setScreen('map');
     }
   }
+
+  /* -------------------------------------------------------
+     FAVORITE STATE
+  ------------------------------------------------------- */
 
   const destinationIsFavorite =
     destination
       ? favorites.some(
           (item) =>
-            item.id === destination.placeId,
+            item.id ===
+            destination.placeId,
         )
       : false;
 
-  const mapBottomPadding =
-    useMemo(() => {
-      if (screen === 'navigation') {
-        return '';
-      }
+  /* -------------------------------------------------------
+     START SCREEN
+  ------------------------------------------------------- */
 
-      return 'pb-20 sm:pb-0';
-    }, [screen]);
-
-  if (screen === 'start') {
+  if (
+    screen === 'start'
+  ) {
     return (
-      <StartScreen onStart={startApp} />
+      <StartScreen
+        onStart={startApp}
+      />
     );
   }
 
+  /* -------------------------------------------------------
+     MAIN APPLICATION
+  ------------------------------------------------------- */
+
   return (
     <div
-      className={`relative h-[100dvh] overflow-hidden bg-slate-100 font-sans text-slate-950 dark:bg-slate-950 dark:text-white ${mapBottomPadding}`}
+      className={[
+        'relative',
+        'h-[100dvh]',
+        'w-full',
+        'overflow-hidden',
+        'bg-slate-100',
+        'font-sans',
+        'text-slate-950',
+        'dark:bg-slate-950',
+        'dark:text-white',
+      ].join(' ')}
     >
+      {/* ---------------------------------------------------
+          MAP
+      --------------------------------------------------- */}
+
       <MapView
-        userPosition={position}
+        userPosition={
+          position
+        }
         destination={
           destination
             ? {
-                lat: destination.lat,
-                lng: destination.lng,
+                lat:
+                  destination.lat,
+                lng:
+                  destination.lng,
               }
             : null
         }
         route={route}
-        autoCenter={settings.autoCenter}
+        autoCenter={
+          settings.autoCenter
+        }
         navigationMode={
-          screen === 'navigation'
+          screen ===
+          'navigation'
         }
       />
 
+      {/* ---------------------------------------------------
+          NORMAL MAP UI
+      --------------------------------------------------- */}
+
       {screen !== 'navigation' && (
         <>
+          {/* SEARCH */}
+
           <div className="absolute left-3 right-3 top-[calc(12px+env(safe-area-inset-top))] z-[1000] mx-auto max-w-2xl">
             <SearchBar
-              onSelect={selectDestination}
+              onSelect={
+                selectDestination
+              }
             />
           </div>
+
+          {/* DESKTOP FAVORITES */}
 
           <div className="absolute left-3 top-[calc(80px+env(safe-area-inset-top))] z-[900] hidden sm:block">
             <button
               type="button"
               onClick={() =>
-                setTab('favorites')
+                setTab(
+                  'favorites',
+                )
               }
-              className="flex items-center gap-2 rounded-2xl border border-white/40 bg-white/95 px-4 py-3 text-sm font-bold shadow-panel backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900/95"
+              className="flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/95 px-4 py-3 text-sm font-bold text-slate-800 shadow-xl backdrop-blur-xl transition hover:scale-[1.02] hover:bg-white active:scale-95 dark:border-slate-700 dark:bg-slate-950/95 dark:text-white dark:hover:bg-slate-900"
             >
-              <Star size={17} />
+              <Star
+                size={17}
+                fill="currentColor"
+              />
+
               Ulubione
             </button>
           </div>
 
+          {/* MAP CONTROLS */}
+
           <div className="absolute right-3 top-[calc(80px+env(safe-area-inset-top))] z-[900] flex flex-col gap-2">
+            {/* MY LOCATION */}
+
             <button
               type="button"
               onClick={() => {
@@ -506,21 +1041,43 @@ function App() {
                 }
               }}
               aria-label="Moja lokalizacja"
-              className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/40 bg-white/95 text-slate-800 shadow-panel backdrop-blur-xl transition hover:scale-105 dark:border-slate-700 dark:bg-slate-900/95 dark:text-white"
+              className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200/80 bg-white/95 text-slate-800 shadow-xl backdrop-blur-xl transition hover:scale-105 active:scale-95 dark:border-slate-700 dark:bg-slate-950/95 dark:text-white"
             >
-              <LocateFixed size={21} />
+              <LocateFixed
+                size={21}
+              />
             </button>
+
+            {/* FAVORITE */}
 
             {destination && (
               <button
                 type="button"
-                onClick={saveFavorite}
-                aria-label="Dodaj do ulubionych"
-                className={`flex h-12 w-12 items-center justify-center rounded-2xl border shadow-panel backdrop-blur-xl transition hover:scale-105 ${
+                onClick={
+                  saveFavorite
+                }
+                aria-label={
                   destinationIsFavorite
-                    ? 'border-violet-200 bg-violet-600 text-white'
-                    : 'border-white/40 bg-white/95 text-slate-800 dark:border-slate-700 dark:bg-slate-900/95 dark:text-white'
-                }`}
+                    ? 'Usuń z ulubionych'
+                    : 'Dodaj do ulubionych'
+                }
+                className={[
+                  'flex',
+                  'h-12',
+                  'w-12',
+                  'items-center',
+                  'justify-center',
+                  'rounded-2xl',
+                  'border',
+                  'shadow-xl',
+                  'backdrop-blur-xl',
+                  'transition',
+                  'hover:scale-105',
+                  'active:scale-95',
+                  destinationIsFavorite
+                    ? 'border-violet-500 bg-violet-600 text-white'
+                    : 'border-slate-200/80 bg-white/95 text-slate-800 dark:border-slate-700 dark:bg-slate-950/95 dark:text-white',
+                ].join(' ')}
               >
                 <Star
                   size={21}
@@ -534,109 +1091,205 @@ function App() {
             )}
           </div>
 
+          {/* LOCATION REQUEST */}
+
           {!position && (
             <div className="absolute bottom-24 left-3 right-3 z-[800] mx-auto max-w-md sm:bottom-5">
               <button
                 type="button"
-                onClick={requestLocation}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950/90 px-5 py-4 text-sm font-bold text-white shadow-floating backdrop-blur-xl dark:bg-white/95 dark:text-slate-950"
+                onClick={
+                  requestLocation
+                }
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950/95 px-5 py-4 text-sm font-bold text-white shadow-2xl backdrop-blur-xl transition hover:bg-slate-900 active:scale-[0.99] dark:border dark:border-slate-700 dark:bg-white/95 dark:text-slate-950"
               >
-                <Navigation size={18} />
+                <Navigation
+                  size={18}
+                />
+
                 Włącz lokalizację
               </button>
             </div>
           )}
 
+          {/* ROUTE PANEL */}
+
           {destination && (
             <RoutePanel
-              destination={destination}
+              destination={
+                destination
+              }
               route={route}
-              calculating={calculating}
-              units={settings.units}
-              onStart={startNavigation}
-              onClose={closeRoute}
-              userPosition={position}
+              calculating={
+                calculating
+              }
+              units={
+                settings.units
+              }
+              onStart={
+                startNavigation
+              }
+              onClose={
+                closeRoute
+              }
+              userPosition={
+                position
+              }
             />
           )}
         </>
       )}
 
-      {screen === 'navigation' &&
+      {/* ---------------------------------------------------
+          NAVIGATION MODE
+      --------------------------------------------------- */}
+
+      {screen ===
+        'navigation' &&
         route && (
           <NavigationMode
             route={route}
-            position={position}
-            settings={settings}
-            muted={muted}
-            onToggleVoice={() =>
-              setMuted((current) => !current)
+            position={
+              position
             }
-            onExit={exitNavigation}
-            rerouting={rerouting}
+            settings={
+              settings
+            }
+            muted={
+              muted
+            }
+            onToggleVoice={() =>
+              setMuted(
+                (current) =>
+                  !current,
+              )
+            }
+            onExit={
+              exitNavigation
+            }
+            rerouting={
+              rerouting
+            }
           />
         )}
+
+      {/* ---------------------------------------------------
+          STATUS MESSAGE
+      --------------------------------------------------- */}
 
       {status && (
         <StatusMessage
           message={status}
-          onClose={() => setStatus(null)}
+          onClose={() =>
+            setStatus(null)
+          }
         />
       )}
+
+      {/* ---------------------------------------------------
+          SIDE PANEL
+      --------------------------------------------------- */}
 
       {panel && (
         <SidePanel
           type={panel}
-          favorites={favorites}
-          history={history}
+          favorites={
+            favorites
+          }
+          history={
+            history
+          }
           home={home}
           work={work}
-          onSelect={selectDestination}
-          onDeleteFavorite={deleteFavorite}
+          onSelect={
+            selectDestination
+          }
+          onDeleteFavorite={
+            deleteFavorite
+          }
           onClose={() => {
             setPanel(null);
             setActiveTab('map');
           }}
           onOpenSettings={() => {
             setPanel(null);
-            setSettingsOpen(true);
-            setActiveTab('settings');
+            setSettingsOpen(
+              true,
+            );
+            setActiveTab(
+              'settings',
+            );
           }}
         />
       )}
+
+      {/* ---------------------------------------------------
+          SETTINGS
+      --------------------------------------------------- */}
 
       {settingsOpen && (
         <SettingsPanel
-          settings={settings}
-          onChange={setSettings}
+          settings={
+            settings
+          }
+          onChange={
+            setSettings
+          }
           onClose={() => {
-            setSettingsOpen(false);
-            setActiveTab('map');
+            setSettingsOpen(
+              false,
+            );
+            setActiveTab(
+              'map',
+            );
           }}
         />
       )}
 
-      {screen !== 'navigation' && (
+      {/* ---------------------------------------------------
+          MOBILE BOTTOM NAVIGATION
+      --------------------------------------------------- */}
+
+      {screen !==
+        'navigation' && (
         <BottomNavigation
-          active={activeTab}
-          onChange={setTab}
+          active={
+            activeTab
+          }
+          onChange={
+            setTab
+          }
         />
       )}
 
-      {screen === 'navigation' && (
+      {/* ---------------------------------------------------
+          DESKTOP NAVIGATION EXIT BUTTON
+      --------------------------------------------------- */}
+
+      {screen ===
+        'navigation' && (
         <div className="absolute bottom-5 left-5 z-[1100] hidden sm:block">
           <button
             type="button"
-            onClick={exitNavigation}
-            className="flex items-center gap-2 rounded-2xl bg-white/95 px-4 py-3 text-sm font-bold text-slate-900 shadow-panel backdrop-blur-xl"
+            onClick={
+              exitNavigation
+            }
+            className="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/95 px-4 py-3 text-sm font-bold text-white shadow-2xl backdrop-blur-xl transition hover:bg-slate-900 active:scale-95"
           >
-            <Menu size={18} />
+            <Menu
+              size={18}
+            />
+
             Mapa
           </button>
         </div>
       )}
 
+      {/* ---------------------------------------------------
+          WAYNORA BRAND
+      --------------------------------------------------- */}
+
       <div className="pointer-events-none absolute bottom-[calc(70px+env(safe-area-inset-bottom))] left-1/2 z-[700] -translate-x-1/2 sm:hidden">
-        <div className="rounded-full bg-white/80 px-3 py-1 text-[9px] font-bold uppercase tracking-widest text-slate-400 shadow-sm backdrop-blur-md dark:bg-slate-900/80">
+        <div className="rounded-full border border-slate-200/50 bg-white/80 px-3 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 shadow-sm backdrop-blur-md dark:border-slate-700/50 dark:bg-slate-950/80 dark:text-slate-500">
           Waynora
         </div>
       </div>
@@ -645,3 +1298,4 @@ function App() {
 }
 
 export default App;
+```
