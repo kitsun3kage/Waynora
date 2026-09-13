@@ -1,3 +1,5 @@
+import type { Coordinates } from '../types';
+
 const ROUTING_URL =
   import.meta.env.VITE_ROUTING_URL ||
   'https://router.project-osrm.org';
@@ -27,6 +29,7 @@ export interface CalculatedRoute {
   duration: number;
   geometry: [number, number][];
   legs: RouteLeg[];
+  steps: RouteStep[];
   summary: string;
 }
 
@@ -45,11 +48,26 @@ interface OsrmResponse {
   routes?: OsrmRoute[];
 }
 
+function coordinatesToLatLng(
+  coordinates: Coordinates | [number, number]
+): [number, number] {
+  if (Array.isArray(coordinates)) {
+    return [coordinates[0], coordinates[1]];
+  }
+
+  return [coordinates.latitude, coordinates.longitude];
+}
+
 export async function calculateRoute(
-  from: [number, number],
-  to: [number, number]
+  from: Coordinates | [number, number],
+  to: Coordinates | [number, number]
 ): Promise<CalculatedRoute> {
-  const coordinates = `${from[1]},${from[0]};${to[1]},${to[0]}`;
+  const fromLatLng = coordinatesToLatLng(from);
+  const toLatLng = coordinatesToLatLng(to);
+
+  const coordinates =
+    `${fromLatLng[1]},${fromLatLng[0]};` +
+    `${toLatLng[1]},${toLatLng[0]}`;
 
   const url =
     `${ROUTING_URL}/route/v1/driving/${coordinates}` +
@@ -74,6 +92,10 @@ export async function calculateRoute(
 
   const route = data.routes[0];
 
+  const steps: RouteStep[] = route.legs.flatMap(
+    (leg) => leg.steps
+  );
+
   return {
     distance: route.distance,
     duration: route.duration,
@@ -81,16 +103,14 @@ export async function calculateRoute(
       ([lng, lat]): [number, number] => [lat, lng]
     ),
     legs: route.legs,
+    steps,
     summary: route.name || 'Trasa'
   };
 }
 
-/**
- * Alias zachowany dla kompatybilności z innymi komponentami.
- */
 export async function getRoute(
-  from: [number, number],
-  to: [number, number]
+  from: Coordinates | [number, number],
+  to: Coordinates | [number, number]
 ): Promise<CalculatedRoute> {
   return calculateRoute(from, to);
 }
